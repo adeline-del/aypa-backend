@@ -1,0 +1,135 @@
+# ==============================================================================
+# AYPA Backend - Git Ignore Rules (Industry Standard & Security Compliant)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Environment & Sensitive Data (CRITICAL SECURITY)
+# Never commit sensitive API keys, database URLs, passwords, or secrets
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+*.p12
+*.asc
+secrets/
+credentials.json
+service-account*.json
+
+# ------------------------------------------------------------------------------
+# 2. Dependency Directories
+# ------------------------------------------------------------------------------
+node_modules/
+jspm_packages/
+web_modules/
+
+# ------------------------------------------------------------------------------
+# 3. Build & Compiled Outputs
+# ------------------------------------------------------------------------------
+dist/
+build/
+out/
+bin/
+*.tsbuildinfo
+.tscache/
+
+# ------------------------------------------------------------------------------
+# 4. Logs & Process Management
+# ------------------------------------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------------------------------------------------------
+# 5. Diagnostic & Temporary Files
+# ------------------------------------------------------------------------------
+tmp/
+temp/
+.tmp/
+.temp/
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------------------
+# 6. Testing & Code Coverage
+# ------------------------------------------------------------------------------
+coverage/
+.nyc_output/
+.clover/
+*.lcov
+junit.xml
+
+# ------------------------------------------------------------------------------
+# 7. IDE & Code Editors
+# ------------------------------------------------------------------------------
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# WebStorm / JetBrains
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Visual Studio / Eclipse / Others
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ------------------------------------------------------------------------------
+# 8. Operating System & System Files
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+.directory
+
+# ------------------------------------------------------------------------------
+# 9. Local Databases & Storage
+# ------------------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
