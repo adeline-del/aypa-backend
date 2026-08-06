@@ -4,32 +4,41 @@ import { ApiError } from '../utils/ApiError';
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
-    email: string;
-    role: 'youth' | 'executive';
+    email?: string;
+    role?: 'youth' | 'executive';
   };
 }
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const authenticate = (
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction
+): void => {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     throw new ApiError(401, 'Unauthorized access. Authentication token required.');
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.substring(7);
 
-  // Simple token decoding check / mock session token handling
-  if (token === 'mock-jwt-token' || token.startsWith('token_')) {
-    req.user = {
-      id: '1',
-      email: 'sarah@example.com',
-      role: 'youth',
-    };
-    next();
-    return;
+  if (!token.startsWith('token_')) {
+    throw new ApiError(401, 'Invalid or expired authorization token.');
   }
 
-  throw new ApiError(401, 'Invalid or expired authorization token.');
+  const tokenParts = token.split('_');
+
+  if (tokenParts.length < 3) {
+    throw new ApiError(401, 'Invalid authentication token.');
+  }
+
+  const userId = tokenParts[1];
+
+  req.user = {
+    id: userId,
+  };
+
+  next();
 };
 
 export const requireAuth = authenticate;

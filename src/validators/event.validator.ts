@@ -33,3 +33,4 @@ export const registerEventSchema = z.object({
     id: z.string().regex(/^\d+$/, 'ID must be a valid numeric string'),
   }),
 });
+
