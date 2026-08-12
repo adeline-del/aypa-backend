@@ -37,7 +37,7 @@ const eventSchema = new Schema<IEventDocument>(
   {
     timestamps: true,
     toJSON: {
-      transform(_doc, ret: Record<string, any>) {
+      transform(_doc, ret: Record<string, unknown>) {
         ret.id = ret.numericId;
         delete ret.numericId;
         delete ret._id;

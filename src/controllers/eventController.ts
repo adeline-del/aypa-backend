@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { EventModel, IEvent } from '../models/Event';
+import { EventRegistrationModel } from '../models/EventRegistration';
 import { config } from '../config/env';
 import { ApiError } from '../utils/ApiError';
 
@@ -16,7 +17,7 @@ let inMemoryEvents: IEvent[] = [
     registered: 145,
     isLive: true,
     streamUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    image: 'https://images.pexels.com/photos/8468470/pexels-photo-8468470.jpeg',
+    image: 'https://res.cloudinary.com/dxxmqm9vw/image/upload/v1775140329/2_mjwkin.jpg',
   },
   {
     id: 2,
@@ -29,7 +30,7 @@ let inMemoryEvents: IEvent[] = [
     capacity: 50,
     registered: 32,
     isLive: false,
-    image: 'https://images.pexels.com/photos/8468481/pexels-photo-8468481.jpeg',
+    image: 'https://res.cloudinary.com/dxxmqm9vw/image/upload/v1775140330/3_uph0zl.jpg',
   },
   {
     id: 3,
@@ -42,7 +43,7 @@ let inMemoryEvents: IEvent[] = [
     capacity: 100,
     registered: 67,
     isLive: false,
-    image: 'https://images.pexels.com/photos/6646918/pexels-photo-6646918.jpeg',
+    image: 'https://res.cloudinary.com/dxxmqm9vw/image/upload/v1775140330/4_yxalfa.jpg',
   },
   {
     id: 4,
@@ -60,6 +61,7 @@ let inMemoryEvents: IEvent[] = [
   },
 ];
 
+//GET ALL EVENTS
 export const getEvents = async (req: Request, res: Response): Promise<void> => {
   const { category, isLive } = req.query;
 
@@ -83,6 +85,7 @@ export const getEvents = async (req: Request, res: Response): Promise<void> => {
   res.status(200).json({ success: true, count: events.length, data: events });
 };
 
+//GET EVENT BY ID
 export const getEventById = async (req: Request, res: Response): Promise<void> => {
   const numericId = parseInt(req.params.id, 10);
 
@@ -102,6 +105,7 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
   res.status(200).json({ success: true, data: event });
 };
 
+//CREATE A NEW EVENT
 export const createEvent = async (req: Request, res: Response): Promise<void> => {
   const newEventData = req.body;
 
@@ -129,32 +133,166 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
   res.status(201).json({ success: true, message: 'Event created successfully.', data: eventDoc });
 };
 
-export const registerForEvent = async (req: Request, res: Response): Promise<void> => {
+//UPDATE AN EVENT
+export const updateEvent = async (req: Request, res: Response): Promise<void> => {
   const numericId = parseInt(req.params.id, 10);
+  const updates = req.body;
 
   if (config.useInMemoryMock) {
-    const event = inMemoryEvents.find((e) => e.id === numericId);
-    if (!event) {
+    const eventIndex = inMemoryEvents.findIndex((event) => event.id === numericId);
+
+    if (eventIndex === -1) {
       throw new ApiError(404, `Event with ID ${numericId} not found.`);
     }
-    if (event.registered >= event.capacity) {
-      throw new ApiError(400, 'Event capacity reached.');
+
+    const updatedEvent: IEvent = {
+      ...inMemoryEvents[eventIndex],
+      ...updates,
+    };
+
+    if (updatedEvent.registered > updatedEvent.capacity) {
+      throw new ApiError(
+        400,
+        'Event capacity cannot be lower than the number of registered attendees.'
+      );
     }
-    event.registered += 1;
-    res.status(200).json({ success: true, message: 'Successfully registered for event.', data: event });
+
+    inMemoryEvents[eventIndex] = updatedEvent;
+
+    res.status(200).json({
+      success: true,
+      message: 'Event updated successfully.',
+      data: updatedEvent,
+    });
+
     return;
   }
 
   const event = await EventModel.findOne({ numericId });
+
   if (!event) {
     throw new ApiError(404, `Event with ID ${numericId} not found.`);
   }
+
+  if (
+    updates.capacity !== undefined &&
+    updates.capacity < event.registered
+  ) {
+    throw new ApiError(
+      400,
+      'Event capacity cannot be lower than the number of registered attendees.'
+    );
+  }
+
+  Object.assign(event, updates);
+
+  await event.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Event updated successfully.',
+    data: event,
+  });
+};
+
+//DELETE AN EVENT
+export const deleteEvent = async (req: Request, res: Response): Promise<void> => {
+  const numericId = parseInt(req.params.id, 10);
+
+  if (config.useInMemoryMock) {
+    const eventIndex = inMemoryEvents.findIndex((event) => event.id === numericId);
+
+    if (eventIndex === -1) {
+      throw new ApiError(404, `Event with ID ${numericId} not found.`);
+    }
+
+    const [deletedEvent] = inMemoryEvents.splice(eventIndex, 1);
+
+    res.status(200).json({
+      success: true,
+      message: 'Event deleted successfully.',
+      data: deletedEvent,
+    });
+
+    return;
+  }
+
+  const deletedEvent = await EventModel.findOneAndDelete({ numericId });
+
+  if (!deletedEvent) {
+    throw new ApiError(404, `Event with ID ${numericId} not found.`);
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Event deleted successfully.',
+    data: deletedEvent,
+  });
+};
+
+
+//REGISTER FOR AN EVENT
+export const registerForEvent = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const numericId = parseInt(req.params.id, 10);
+
+  const {
+    fullName,
+    email,
+    phone,
+    archdeaconry,
+    parish,
+    age,
+  } = req.body;
+
+  const event = await EventModel.findOne({
+    numericId,
+  });
+
+  if (!event) {
+    throw new ApiError(
+      404,
+      `Event with ID ${numericId} not found.`,
+    );
+  }
+
   if (event.registered >= event.capacity) {
     throw new ApiError(400, 'Event capacity reached.');
   }
 
+  const existingRegistration =
+    await EventRegistrationModel.findOne({
+      eventId: numericId,
+      email: email.toLowerCase(),
+    });
+
+  if (existingRegistration) {
+    throw new ApiError(
+      409,
+      'This email is already registered for this event.',
+    );
+  }
+
+  const registration =
+    await EventRegistrationModel.create({
+      eventId: numericId,
+      fullName,
+      email,
+      phone,
+      archdeaconry,
+      parish,
+      age,
+    });
+
   event.registered += 1;
+
   await event.save();
 
-  res.status(200).json({ success: true, message: 'Successfully registered for event.', data: event });
+  res.status(201).json({
+    success: true,
+    message: 'Successfully registered for event.',
+    data: registration,
+  });
 };

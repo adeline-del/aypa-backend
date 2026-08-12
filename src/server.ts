@@ -11,7 +11,8 @@ import resourceRoutes from './routes/resourceRoutes';
 import newsRoutes from './routes/newsRoutes';
 import supportRoutes from './routes/supportRoutes';
 import contactRoutes from './routes/contactRoutes';
-import dioceseRoutes from './routes/dioceseRoutes';
+import archdeaconryRoutes from './routes/archdeaconryRoutes';
+import eventRegistrationRoutes from './routes/eventRegistrationRoutes';
 
 const app: Application = express();
 
@@ -38,7 +39,8 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/contact', contactRoutes);
-app.use('/api/diocese', dioceseRoutes);
+app.use('/api/archdeaconries', archdeaconryRoutes);
+app.use('/api/events', eventRegistrationRoutes);
 
 // Error Handling Middlewares
 app.use(notFoundHandler);
