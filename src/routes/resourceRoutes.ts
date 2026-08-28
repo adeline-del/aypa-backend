@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth';
+import { authorizePermissions } from '../middleware/authorize';
 import { validateRequest } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
@@ -14,8 +16,17 @@ import {
 
 const router = Router();
 
+// Public Read Endpoints
 router.get('/', validateRequest(getResourcesSchema), asyncHandler(getResources));
 router.get('/:id', validateRequest(getResourceByIdSchema), asyncHandler(getResourceById));
-router.post('/', validateRequest(createResourceSchema), asyncHandler(createResource));
+
+// Protected Content Creation Endpoint
+router.post(
+  '/',
+  authenticate,
+  authorizePermissions('content:create'),
+  validateRequest(createResourceSchema),
+  asyncHandler(createResource)
+);
 
 export default router;

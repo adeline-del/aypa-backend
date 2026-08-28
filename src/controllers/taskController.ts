@@ -1,0 +1,241 @@
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { TaskModel, ITask, TaskStatus, TaskPriority } from '../models/Task';
+import { ApiError } from '../utils/ApiError';
+import { config } from '../config/env';
+import { inMemoryTasks } from '../utils/mockStore';
+import { checkOrgScope } from '../middleware/authorize';
+
+export const getTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.user) throw new ApiError(401, 'Authentication required.');
+
+  const { status, priority, assignedTo, branchId, archdeaconryId } = req.query;
+
+  if (config.useInMemoryMock) {
+    let filtered = [...inMemoryTasks];
+
+    // Filter by organizational scope or direct assignment
+    if (req.user.role === 'branch_executive') {
+      filtered = filtered.filter(
+        (t) =>
+          t.assignedTo === req.user?.id ||
+          t.assignedRole === 'branch_executive' ||
+          t.branchId === req.user?.branchId
+      );
+    } else if (req.user.role === 'archdeaconry_executive') {
+      filtered = filtered.filter(
+        (t) =>
+          t.assignedTo === req.user?.id ||
+          t.assignedRole === 'archdeaconry_executive' ||
+          t.archdeaconryId === req.user?.archdeaconryId
+      );
+    } else if (req.user.role === 'youth') {
+      filtered = filtered.filter(
+        (t) => t.assignedTo === req.user?.id || t.assignedRole === 'youth'
+      );
+    }
+
+    if (status) filtered = filtered.filter((t) => t.status === status);
+    if (priority) filtered = filtered.filter((t) => t.priority === priority);
+    if (assignedTo) filtered = filtered.filter((t) => t.assignedTo === assignedTo);
+    if (branchId) filtered = filtered.filter((t) => t.branchId === branchId);
+    if (archdeaconryId) filtered = filtered.filter((t) => t.archdeaconryId === archdeaconryId);
+
+    res.status(200).json({
+      success: true,
+      count: filtered.length,
+      data: filtered,
+    });
+    return;
+  }
+
+  const queryConditions: any[] = [];
+
+  if (req.user.role === 'super_admin' || req.user.role === 'admin' || req.user.role === 'accra_diocesan_executive') {
+    // Diocesan and system admins see all tasks
+  } else if (req.user.role === 'branch_executive') {
+    queryConditions.push({ assignedTo: req.user.id });
+    queryConditions.push({ assignedRole: 'branch_executive' });
+    if (req.user.branchId) queryConditions.push({ branchId: req.user.branchId });
+  } else if (req.user.role === 'archdeaconry_executive') {
+    queryConditions.push({ assignedTo: req.user.id });
+    queryConditions.push({ assignedRole: 'archdeaconry_executive' });
+    if (req.user.archdeaconryId) queryConditions.push({ archdeaconryId: req.user.archdeaconryId });
+  } else {
+    queryConditions.push({ assignedTo: req.user.id });
+    queryConditions.push({ assignedRole: req.user.role });
+  }
+
+  const baseQuery: Record<string, any> = {};
+  if (queryConditions.length > 0) {
+    baseQuery.$or = queryConditions;
+  }
+
+  if (status) baseQuery.status = status;
+  if (priority) baseQuery.priority = priority;
+  if (assignedTo) baseQuery.assignedTo = assignedTo;
+  if (branchId) baseQuery.branchId = branchId;
+  if (archdeaconryId) baseQuery.archdeaconryId = archdeaconryId;
+
+  const tasks = await TaskModel.find(baseQuery).sort({ dueDate: 1, createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    count: tasks.length,
+    data: tasks.map((t) => t.toJSON()),
+  });
+};
+
+export const getTaskById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.user) throw new ApiError(401, 'Authentication required.');
+  const { id } = req.params;
+
+  if (config.useInMemoryMock) {
+    const task = inMemoryTasks.find((t) => t.id === id);
+    if (!task) throw new ApiError(404, 'Task not found.');
+
+    res.status(200).json({
+      success: true,
+      data: task,
+    });
+    return;
+  }
+
+  const task = await TaskModel.findById(id);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  res.status(200).json({
+    success: true,
+    data: task.toJSON(),
+  });
+};
+
+export const createTask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.user) throw new ApiError(401, 'Authentication required.');
+
+  const { title, description, assignedTo, assignedRole, branchId, archdeaconryId, dioceseId, priority, dueDate } = req.body;
+
+  const effectiveDioceseId = dioceseId || 'accra';
+
+  if (config.useInMemoryMock) {
+    const newTask: ITask = {
+      id: Date.now().toString(),
+      title,
+      description,
+      createdBy: req.user.id,
+      assignedTo: assignedTo || '',
+      assignedRole: assignedRole || undefined,
+      branchId: branchId || '',
+      archdeaconryId: archdeaconryId || '',
+      dioceseId: effectiveDioceseId,
+      priority: (priority as TaskPriority) || 'medium',
+      status: 'pending',
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+    };
+
+    inMemoryTasks.push(newTask);
+
+    res.status(201).json({
+      success: true,
+      message: 'Task created successfully.',
+      data: newTask,
+    });
+    return;
+  }
+
+  const newTask = await TaskModel.create({
+    title,
+    description,
+    createdBy: req.user.id,
+    assignedTo,
+    assignedRole,
+    branchId,
+    archdeaconryId,
+    dioceseId: effectiveDioceseId,
+    priority: priority || 'medium',
+    status: 'pending',
+    dueDate: dueDate ? new Date(dueDate) : undefined,
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Task created successfully.',
+    data: newTask.toJSON(),
+  });
+};
+
+export const updateTask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.user) throw new ApiError(401, 'Authentication required.');
+  const { id } = req.params;
+  const updates = req.body;
+
+  if (config.useInMemoryMock) {
+    const task = inMemoryTasks.find((t) => t.id === id);
+    if (!task) throw new ApiError(404, 'Task not found.');
+
+    Object.assign(task, updates);
+    if (updates.status === 'completed' && !task.completedAt) {
+      task.completedAt = new Date();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Task updated successfully.',
+      data: task,
+    });
+    return;
+  }
+
+  const task = await TaskModel.findById(id);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  Object.assign(task, updates);
+  if (updates.status === 'completed' && !task.completedAt) {
+    task.completedAt = new Date();
+  }
+  await task.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Task updated successfully.',
+    data: task.toJSON(),
+  });
+};
+
+export const updateTaskStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  if (!req.user) throw new ApiError(401, 'Authentication required.');
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (config.useInMemoryMock) {
+    const task = inMemoryTasks.find((t) => t.id === id);
+    if (!task) throw new ApiError(404, 'Task not found.');
+
+    task.status = status as TaskStatus;
+    if (status === 'completed') {
+      task.completedAt = new Date();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Task status updated to '${status}'.`,
+      data: task,
+    });
+    return;
+  }
+
+  const task = await TaskModel.findById(id);
+  if (!task) throw new ApiError(404, 'Task not found.');
+
+  task.status = status as TaskStatus;
+  if (status === 'completed') {
+    task.completedAt = new Date();
+  }
+  await task.save();
+
+  res.status(200).json({
+    success: true,
+    message: `Task status updated to '${status}'.`,
+    data: task.toJSON(),
+  });
+};

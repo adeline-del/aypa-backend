@@ -16,7 +16,7 @@ export const validateRequest = (schema: AnyZodObject) => {
           success: false,
           message: 'Validation failed for request parameters or payload.',
           errors: error.errors.map((e) => ({
-            path: e.path.join('.'),
+            field: e.path.join('.').replace(/^(body|query|params)\./, ''),
             message: e.message,
           })),
         });

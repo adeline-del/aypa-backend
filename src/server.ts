@@ -5,6 +5,10 @@ import { configureCors } from './middleware/cors';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 import authRoutes from './routes/authRoutes';
+import userRoutes from './routes/userRoutes';
+import branchRoutes from './routes/branchRoutes';
+import reportRoutes from './routes/reportRoutes';
+import taskRoutes from './routes/taskRoutes';
 import eventRoutes from './routes/eventRoutes';
 import programRoutes from './routes/programRoutes';
 import resourceRoutes from './routes/resourceRoutes';
@@ -33,6 +37,10 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/branches', branchRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/tasks', taskRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/programs', programRoutes);
 app.use('/api/resources', resourceRoutes);

@@ -18,6 +18,9 @@ export const config = {
   mongoUri,
   useInMemoryMock: process.env.USE_IN_MEMORY_MOCK === 'true',
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  jwtSecret: process.env.JWT_SECRET || 'aypa_accra_jwt_secret_key_default',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 };
+
 
 export default config;
