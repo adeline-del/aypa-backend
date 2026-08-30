@@ -1,50 +1,159 @@
 import { Response } from 'express';
+
 import { AuthenticatedRequest } from '../middleware/auth';
-import { ReportModel, IReport, ReportStatus } from '../models/Report';
+
+import {
+  ReportModel,
+  IReport,
+} from '../models/Report';
+
 import { ApiError } from '../utils/ApiError';
+
 import { config } from '../config/env';
+
 import { inMemoryReports } from '../utils/mockStore';
+
 import { checkOrgScope } from '../middleware/authorize';
 
-export const getReports = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+const canAccessReport = (
+  req: AuthenticatedRequest,
+  report: IReport,
+): boolean => {
+  if (!req.user) {
+    return false;
+  }
+
+  return checkOrgScope(req.user, {
+    branchId: report.branchId,
+    archdeaconryId: report.archdeaconryId,
+    dioceseId: report.dioceseId,
+  });
+};
+
+const canModifyReport = (
+  req: AuthenticatedRequest,
+  report: IReport,
+): boolean => {
+  if (!req.user) {
+    return false;
+  }
+
+  if (!canAccessReport(req, report)) {
+    return false;
+  }
+
+  /**
+   * Branch executives own the branch-report submission workflow.
+   *
+   * Administrative/global roles may manage reports through
+   * their broader permissions.
+   */
+  if (
+    req.user.role === 'admin' ||
+    req.user.role === 'super_admin'
+  ) {
+    return true;
+  }
+
+  return (
+    req.user.role === 'branch_executive' &&
+    report.branchId === req.user.branchId
+  );
+};
+
+export const getReports = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
   if (!req.user) {
     throw new ApiError(401, 'Authentication required.');
   }
 
-  const { status, reportingPeriod, branchId, archdeaconryId } = req.query;
+  const {
+    status,
+    reportingPeriod,
+    branchId,
+    archdeaconryId,
+  } = req.query;
 
-  // Build organizational scope query filter server-side
   let queryBranchId = branchId as string | undefined;
-  let queryArchId = archdeaconryId as string | undefined;
+  let queryArchdeaconryId =
+    archdeaconryId as string | undefined;
 
   if (req.user.role === 'branch_executive') {
     if (!req.user.branchId) {
-      throw new ApiError(400, 'User does not have an assigned branchId.');
+      throw new ApiError(
+        400,
+        'User does not have an assigned branchId.',
+      );
     }
-    queryBranchId = req.user.branchId; // Force branch exec to see only their branch
-  } else if (req.user.role === 'archdeaconry_executive') {
+
+    queryBranchId = req.user.branchId;
+  } else if (
+    req.user.role === 'archdeaconry_executive'
+  ) {
     if (!req.user.archdeaconryId) {
-      throw new ApiError(400, 'User does not have an assigned archdeaconryId.');
+      throw new ApiError(
+        400,
+        'User does not have an assigned archdeaconryId.',
+      );
     }
-    queryArchId = req.user.archdeaconryId; // Force archdeaconry exec to see only their archdeaconry
+
+    queryArchdeaconryId = req.user.archdeaconryId;
   } else if (req.user.role === 'youth') {
-    throw new ApiError(403, 'Access denied. Youth members cannot view organizational branch reports.');
+    throw new ApiError(
+      403,
+      'Access denied. Youth members cannot view organizational branch reports.',
+    );
+  } else if (
+    req.user.role === 'accra_diocesan_executive' ||
+    req.user.role === 'content_manager'
+  ) {
+    if (req.user.dioceseId) {
+      /**
+       * Diocesan/content scope is enforced below through
+       * the dioceseId query.
+       */
+    }
   }
 
   if (config.useInMemoryMock) {
     let filtered = [...inMemoryReports];
 
     if (queryBranchId) {
-      filtered = filtered.filter((r) => r.branchId === queryBranchId);
+      filtered = filtered.filter(
+        (report) => report.branchId === queryBranchId,
+      );
     }
-    if (queryArchId) {
-      filtered = filtered.filter((r) => r.archdeaconryId === queryArchId);
+
+    if (queryArchdeaconryId) {
+      filtered = filtered.filter(
+        (report) =>
+          report.archdeaconryId === queryArchdeaconryId,
+      );
     }
+
+    if (
+      req.user.role === 'accra_diocesan_executive' ||
+      req.user.role === 'content_manager'
+    ) {
+      filtered = filtered.filter(
+        (report) =>
+          report.dioceseId === req.user?.dioceseId,
+      );
+    }
+
     if (status) {
-      filtered = filtered.filter((r) => r.status === status);
+      filtered = filtered.filter(
+        (report) => report.status === status,
+      );
     }
+
     if (reportingPeriod) {
-      filtered = filtered.filter((r) => r.reportingPeriod === reportingPeriod);
+      filtered = filtered.filter(
+        (report) =>
+          report.reportingPeriod === reportingPeriod,
+      );
     }
 
     res.status(200).json({
@@ -52,52 +161,91 @@ export const getReports = async (req: AuthenticatedRequest, res: Response): Prom
       count: filtered.length,
       data: filtered,
     });
+
     return;
   }
 
-  const query: Record<string, any> = {};
-  if (queryBranchId) query.branchId = queryBranchId;
-  if (queryArchId) query.archdeaconryId = queryArchId;
-  if (status) query.status = status;
-  if (reportingPeriod) query.reportingPeriod = reportingPeriod;
+  const query: Record<string, unknown> = {};
 
-  const reports = await ReportModel.find(query).sort({ createdAt: -1 });
+  if (queryBranchId) {
+    query.branchId = queryBranchId;
+  }
+
+  if (queryArchdeaconryId) {
+    query.archdeaconryId = queryArchdeaconryId;
+  }
+
+  if (
+    req.user.role === 'accra_diocesan_executive' ||
+    req.user.role === 'content_manager'
+  ) {
+    query.dioceseId = req.user.dioceseId;
+  }
+
+  if (status) {
+    query.status = status;
+  }
+
+  if (reportingPeriod) {
+    query.reportingPeriod = reportingPeriod;
+  }
+
+  const reports = await ReportModel.find(query).sort({
+    createdAt: -1,
+  });
 
   res.status(200).json({
     success: true,
     count: reports.length,
-    data: reports.map((r) => r.toJSON()),
+    data: reports.map((report) => report.toJSON()),
   });
 };
 
-export const getReportById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const getReportById = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
+
     if (!report) {
       throw new ApiError(404, 'Report not found.');
     }
 
-    if (!checkOrgScope(req.user, { branchId: report.branchId, archdeaconryId: report.archdeaconryId })) {
-      throw new ApiError(403, 'Access denied. Report belongs to a different branch or archdeaconry.');
+    if (!canAccessReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. Report is outside your organizational scope.',
+      );
     }
 
     res.status(200).json({
       success: true,
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
+
   if (!report) {
     throw new ApiError(404, 'Report not found.');
   }
 
-  if (!checkOrgScope(req.user, { branchId: report.branchId, archdeaconryId: report.archdeaconryId })) {
-    throw new ApiError(403, 'Access denied. Report belongs to a different branch or archdeaconry.');
+  if (!canAccessReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. Report is outside your organizational scope.',
+    );
   }
 
   res.status(200).json({
@@ -106,29 +254,97 @@ export const getReportById = async (req: AuthenticatedRequest, res: Response): P
   });
 };
 
-export const createReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
-
-  if (req.user.role === 'branch_executive' && (!req.user.branchId || !req.user.archdeaconryId)) {
-    throw new ApiError(400, 'Branch Executive must have assigned branchId and archdeaconryId to create reports.');
+export const createReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
   }
 
-  const { title, reportingPeriod, summary, activities, attendance, achievements, challenges, recommendations } = req.body;
+  const {
+    title,
+    reportingPeriod,
+    summary,
+    activities,
+    attendance,
+    achievements,
+    challenges,
+    recommendations,
+  } = req.body;
 
-  const branchId = req.user.branchId || req.body.branchId || 'default-branch';
-  const archdeaconryId = req.user.archdeaconryId || req.body.archdeaconryId || 'default-archdeaconry';
-  const dioceseId = req.user.dioceseId || 'accra';
+  /**
+   * Branch executives must create reports for their own branch.
+   * Organizational IDs are never accepted from the client.
+   */
+  if (req.user.role === 'branch_executive') {
+    if (
+      !req.user.branchId ||
+      !req.user.archdeaconryId ||
+      !req.user.dioceseId
+    ) {
+      throw new ApiError(
+        400,
+        'Branch Executive must have complete organizational assignments.',
+      );
+    }
+  }
+
+  /**
+   * Scoped executive roles receive their organizational
+   * identity from the authenticated user.
+   *
+   * Global administrators may intentionally specify the
+   * target organization.
+   */
+  const isGlobalAdministrator =
+    req.user.role === 'admin' ||
+    req.user.role === 'super_admin';
+
+  const isDiocesanExecutive =
+    req.user.role === 'accra_diocesan_executive';
+
+  const branchId = isGlobalAdministrator
+    ? req.body.branchId
+    : req.user.branchId;
+
+  const archdeaconryId = isGlobalAdministrator
+    ? req.body.archdeaconryId
+    : req.user.archdeaconryId;
+
+  const dioceseId = isGlobalAdministrator
+    ? req.body.dioceseId || req.user.dioceseId
+    : req.user.dioceseId;
+
+  if (!dioceseId) {
+    throw new ApiError(
+      400,
+      'A valid dioceseId is required to create a report.',
+    );
+  }
+
+  if (isDiocesanExecutive && dioceseId !== req.user.dioceseId) {
+    throw new ApiError(
+      403,
+      'You cannot create a report outside your diocese.',
+    );
+  }
 
   if (config.useInMemoryMock) {
     const newReport: IReport = {
       id: Date.now().toString(),
+
       title,
       reportingPeriod,
+
       branchId,
       archdeaconryId,
       dioceseId,
+
       submittedBy: req.user.id,
+
       status: 'draft',
+
       summary,
       activities: activities || '',
       attendance: attendance || 0,
@@ -144,17 +360,22 @@ export const createReport = async (req: AuthenticatedRequest, res: Response): Pr
       message: 'Branch report draft created successfully.',
       data: newReport,
     });
+
     return;
   }
 
   const newReport = await ReportModel.create({
     title,
     reportingPeriod,
+
     branchId,
     archdeaconryId,
     dioceseId,
+
     submittedBy: req.user.id,
+
     status: 'draft',
+
     summary,
     activities,
     attendance,
@@ -170,44 +391,127 @@ export const createReport = async (req: AuthenticatedRequest, res: Response): Pr
   });
 };
 
-export const updateReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const updateReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
-  const updates = req.body;
+
+  const {
+    title,
+    reportingPeriod,
+    summary,
+    activities,
+    attendance,
+    achievements,
+    challenges,
+    recommendations,
+  } = req.body;
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
-    if (!report) throw new ApiError(404, 'Report not found.');
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
 
-    if (!checkOrgScope(req.user, { branchId: report.branchId, archdeaconryId: report.archdeaconryId })) {
-      throw new ApiError(403, 'Access denied. You cannot modify reports outside your branch scope.');
+    if (!report) {
+      throw new ApiError(404, 'Report not found.');
     }
 
-    if (report.status !== 'draft' && report.status !== 'rejected') {
-      throw new ApiError(400, `Cannot modify report with status '${report.status}'. Only 'draft' or 'rejected' reports can be updated.`);
+    if (!canModifyReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. You cannot modify this report.',
+      );
     }
 
-    Object.assign(report, updates);
+    if (
+      report.status !== 'draft' &&
+      report.status !== 'rejected'
+    ) {
+      throw new ApiError(
+        400,
+        `Cannot modify report with status '${report.status}'. Only 'draft' or 'rejected' reports can be updated.`,
+      );
+    }
+
+    if (title !== undefined) report.title = title;
+    if (reportingPeriod !== undefined) {
+      report.reportingPeriod = reportingPeriod;
+    }
+    if (summary !== undefined) report.summary = summary;
+    if (activities !== undefined) {
+      report.activities = activities;
+    }
+    if (attendance !== undefined) {
+      report.attendance = attendance;
+    }
+    if (achievements !== undefined) {
+      report.achievements = achievements;
+    }
+    if (challenges !== undefined) {
+      report.challenges = challenges;
+    }
+    if (recommendations !== undefined) {
+      report.recommendations = recommendations;
+    }
+
     res.status(200).json({
       success: true,
       message: 'Report updated successfully.',
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
-  if (!report) throw new ApiError(404, 'Report not found.');
 
-  if (!checkOrgScope(req.user, { branchId: report.branchId, archdeaconryId: report.archdeaconryId })) {
-    throw new ApiError(403, 'Access denied. You cannot modify reports outside your branch scope.');
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
   }
 
-  if (report.status !== 'draft' && report.status !== 'rejected') {
-    throw new ApiError(400, `Cannot modify report with status '${report.status}'. Only 'draft' or 'rejected' reports can be updated.`);
+  if (!canModifyReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. You cannot modify this report.',
+    );
   }
 
-  Object.assign(report, updates);
+  if (
+    report.status !== 'draft' &&
+    report.status !== 'rejected'
+  ) {
+    throw new ApiError(
+      400,
+      `Cannot modify report with status '${report.status}'. Only 'draft' or 'rejected' reports can be updated.`,
+    );
+  }
+
+  if (title !== undefined) report.title = title;
+  if (reportingPeriod !== undefined) {
+    report.reportingPeriod = reportingPeriod;
+  }
+  if (summary !== undefined) report.summary = summary;
+  if (activities !== undefined) {
+    report.activities = activities;
+  }
+  if (attendance !== undefined) {
+    report.attendance = attendance;
+  }
+  if (achievements !== undefined) {
+    report.achievements = achievements;
+  }
+  if (challenges !== undefined) {
+    report.challenges = challenges;
+  }
+  if (recommendations !== undefined) {
+    report.recommendations = recommendations;
+  }
+
   await report.save();
 
   res.status(200).json({
@@ -217,87 +521,166 @@ export const updateReport = async (req: AuthenticatedRequest, res: Response): Pr
   });
 };
 
-export const submitReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const submitReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
-    if (!report) throw new ApiError(404, 'Report not found.');
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
 
-    if (!checkOrgScope(req.user, { branchId: report.branchId })) {
-      throw new ApiError(403, 'Access denied. Only the branch executive of this branch can submit this report.');
+    if (!report) {
+      throw new ApiError(404, 'Report not found.');
     }
 
-    if (report.status !== 'draft' && report.status !== 'rejected') {
-      throw new ApiError(400, `Report cannot be submitted from current status '${report.status}'. Legal status transitions: draft -> submitted or rejected -> submitted.`);
+    if (!canModifyReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. Only the authorized branch executive can submit this report.',
+      );
+    }
+
+    if (
+      report.status !== 'draft' &&
+      report.status !== 'rejected'
+    ) {
+      throw new ApiError(
+        400,
+        `Report cannot be submitted from current status '${report.status}'.`,
+      );
     }
 
     report.status = 'submitted';
+
     res.status(200).json({
       success: true,
-      message: 'Branch report submitted successfully for review.',
+      message:
+        'Branch report submitted successfully for review.',
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
-  if (!report) throw new ApiError(404, 'Report not found.');
 
-  if (!checkOrgScope(req.user, { branchId: report.branchId })) {
-    throw new ApiError(403, 'Access denied. Only the branch executive of this branch can submit this report.');
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
   }
 
-  if (report.status !== 'draft' && report.status !== 'rejected') {
-    throw new ApiError(400, `Report cannot be submitted from current status '${report.status}'.`);
+  if (!canModifyReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. Only the authorized branch executive can submit this report.',
+    );
+  }
+
+  if (
+    report.status !== 'draft' &&
+    report.status !== 'rejected'
+  ) {
+    throw new ApiError(
+      400,
+      `Report cannot be submitted from current status '${report.status}'.`,
+    );
   }
 
   report.status = 'submitted';
+
   await report.save();
 
   res.status(200).json({
     success: true,
-    message: 'Branch report submitted successfully for review.',
+    message:
+      'Branch report submitted successfully for review.',
     data: report.toJSON(),
   });
 };
 
-export const reviewReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const reviewReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
   const { reviewComment } = req.body;
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
-    if (!report) throw new ApiError(404, 'Report not found.');
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
+
+    if (!report) {
+      throw new ApiError(404, 'Report not found.');
+    }
+
+    if (!canAccessReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. Report is outside your organizational scope.',
+      );
+    }
 
     if (report.status !== 'submitted') {
-      throw new ApiError(400, `Report cannot be moved to 'under_review' from status '${report.status}'.`);
+      throw new ApiError(
+        400,
+        `Report cannot be moved to 'under_review' from status '${report.status}'.`,
+      );
     }
 
     report.status = 'under_review';
     report.reviewedBy = req.user.id;
-    if (reviewComment) report.reviewComment = reviewComment;
+
+    if (reviewComment) {
+      report.reviewComment = reviewComment;
+    }
 
     res.status(200).json({
       success: true,
       message: 'Report is now under review.',
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
-  if (!report) throw new ApiError(404, 'Report not found.');
+
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
+  }
+
+  if (!canAccessReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. Report is outside your organizational scope.',
+    );
+  }
 
   if (report.status !== 'submitted') {
-    throw new ApiError(400, `Report cannot be moved to 'under_review' from status '${report.status}'.`);
+    throw new ApiError(
+      400,
+      `Report cannot be moved to 'under_review' from status '${report.status}'.`,
+    );
   }
 
   report.status = 'under_review';
   report.reviewedBy = req.user.id;
-  if (reviewComment) report.reviewComment = reviewComment;
+
+  if (reviewComment) {
+    report.reviewComment = reviewComment;
+  }
+
   await report.save();
 
   res.status(200).json({
@@ -307,43 +690,91 @@ export const reviewReport = async (req: AuthenticatedRequest, res: Response): Pr
   });
 };
 
-export const approveReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const approveReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
   const { reviewComment } = req.body;
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
-    if (!report) throw new ApiError(404, 'Report not found.');
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
 
-    if (report.status !== 'under_review' && report.status !== 'submitted') {
-      throw new ApiError(400, `Cannot approve report from status '${report.status}'. Reports must be submitted or under review.`);
+    if (!report) {
+      throw new ApiError(404, 'Report not found.');
+    }
+
+    if (!canAccessReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. Report is outside your organizational scope.',
+      );
+    }
+
+    if (
+      report.status !== 'under_review' &&
+      report.status !== 'submitted'
+    ) {
+      throw new ApiError(
+        400,
+        `Cannot approve report from status '${report.status}'.`,
+      );
     }
 
     report.status = 'approved';
     report.reviewedBy = req.user.id;
     report.reviewedAt = new Date();
-    if (reviewComment) report.reviewComment = reviewComment;
+
+    if (reviewComment) {
+      report.reviewComment = reviewComment;
+    }
 
     res.status(200).json({
       success: true,
       message: 'Report approved successfully.',
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
-  if (!report) throw new ApiError(404, 'Report not found.');
 
-  if (report.status !== 'under_review' && report.status !== 'submitted') {
-    throw new ApiError(400, `Cannot approve report from status '${report.status}'.`);
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
+  }
+
+  if (!canAccessReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. Report is outside your organizational scope.',
+    );
+  }
+
+  if (
+    report.status !== 'under_review' &&
+    report.status !== 'submitted'
+  ) {
+    throw new ApiError(
+      400,
+      `Cannot approve report from status '${report.status}'.`,
+    );
   }
 
   report.status = 'approved';
   report.reviewedBy = req.user.id;
   report.reviewedAt = new Date();
-  if (reviewComment) report.reviewComment = reviewComment;
+
+  if (reviewComment) {
+    report.reviewComment = reviewComment;
+  }
+
   await report.save();
 
   res.status(200).json({
@@ -353,21 +784,48 @@ export const approveReport = async (req: AuthenticatedRequest, res: Response): P
   });
 };
 
-export const rejectReport = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  if (!req.user) throw new ApiError(401, 'Authentication required.');
+export const rejectReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
   const { id } = req.params;
   const { reviewComment } = req.body;
 
   if (!reviewComment) {
-    throw new ApiError(400, 'A review comment explaining the rejection is required.');
+    throw new ApiError(
+      400,
+      'A review comment explaining the rejection is required.',
+    );
   }
 
   if (config.useInMemoryMock) {
-    const report = inMemoryReports.find((r) => r.id === id);
-    if (!report) throw new ApiError(404, 'Report not found.');
+    const report = inMemoryReports.find(
+      (item) => item.id === id,
+    );
 
-    if (report.status !== 'under_review' && report.status !== 'submitted') {
-      throw new ApiError(400, `Cannot reject report from status '${report.status}'.`);
+    if (!report) {
+      throw new ApiError(404, 'Report not found.');
+    }
+
+    if (!canAccessReport(req, report)) {
+      throw new ApiError(
+        403,
+        'Access denied. Report is outside your organizational scope.',
+      );
+    }
+
+    if (
+      report.status !== 'under_review' &&
+      report.status !== 'submitted'
+    ) {
+      throw new ApiError(
+        400,
+        `Cannot reject report from status '${report.status}'.`,
+      );
     }
 
     report.status = 'rejected';
@@ -377,28 +835,48 @@ export const rejectReport = async (req: AuthenticatedRequest, res: Response): Pr
 
     res.status(200).json({
       success: true,
-      message: 'Report rejected and returned to branch executive for revision.',
+      message:
+        'Report rejected and returned to branch executive for revision.',
       data: report,
     });
+
     return;
   }
 
   const report = await ReportModel.findById(id);
-  if (!report) throw new ApiError(404, 'Report not found.');
 
-  if (report.status !== 'under_review' && report.status !== 'submitted') {
-    throw new ApiError(400, `Cannot reject report from status '${report.status}'.`);
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
+  }
+
+  if (!canAccessReport(req, report)) {
+    throw new ApiError(
+      403,
+      'Access denied. Report is outside your organizational scope.',
+    );
+  }
+
+  if (
+    report.status !== 'under_review' &&
+    report.status !== 'submitted'
+  ) {
+    throw new ApiError(
+      400,
+      `Cannot reject report from status '${report.status}'.`,
+    );
   }
 
   report.status = 'rejected';
   report.reviewedBy = req.user.id;
   report.reviewedAt = new Date();
   report.reviewComment = reviewComment;
+
   await report.save();
 
   res.status(200).json({
     success: true,
-    message: 'Report rejected and returned to branch executive for revision.',
+    message:
+      'Report rejected and returned to branch executive for revision.',
     data: report.toJSON(),
   });
 };

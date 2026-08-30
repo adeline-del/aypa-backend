@@ -228,6 +228,8 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
+
+
 export const getCurrentUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.user) {
     throw new ApiError(401, 'Authentication required.');
