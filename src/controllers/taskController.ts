@@ -19,7 +19,7 @@ import { checkOrgScope } from '../middleware/authorize';
 
 const canAccessTask = (
   req: AuthenticatedRequest,
-  task: ITask,
+  task: { assignedTo?: string; branchId?: string; archdeaconryId?: string; dioceseId?: string },
 ): boolean => {
   if (!req.user) {
     return false;
@@ -56,7 +56,7 @@ const canAccessTask = (
 
 const canModifyTask = (
   req: AuthenticatedRequest,
-  task: ITask,
+  task: { assignedTo?: string; createdBy?: string; branchId?: string; archdeaconryId?: string; dioceseId?: string },
 ): boolean => {
   if (!canAccessTask(req, task)) {
     return false;
@@ -81,7 +81,16 @@ const canModifyTask = (
 };
 
 const applyTaskUpdates = (
-  task: ITask,
+  task: {
+    title?: string;
+    description?: string;
+    assignedTo?: string;
+    assignedRole?: ITask['assignedRole'];
+    priority?: TaskPriority;
+    status?: TaskStatus;
+    dueDate?: Date;
+    completedAt?: Date;
+  },
   updates: {
     title?: string;
     description?: string;

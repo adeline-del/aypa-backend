@@ -17,7 +17,7 @@ import { checkOrgScope } from '../middleware/authorize';
 
 const canAccessReport = (
   req: AuthenticatedRequest,
-  report: IReport,
+  report: { branchId?: string; archdeaconryId?: string; dioceseId?: string },
 ): boolean => {
   if (!req.user) {
     return false;
@@ -32,7 +32,7 @@ const canAccessReport = (
 
 const canModifyReport = (
   req: AuthenticatedRequest,
-  report: IReport,
+  report: { branchId?: string; archdeaconryId?: string; dioceseId?: string },
 ): boolean => {
   if (!req.user) {
     return false;
