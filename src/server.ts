@@ -17,6 +17,7 @@ import supportRoutes from './routes/supportRoutes';
 import contactRoutes from './routes/contactRoutes';
 import archdeaconryRoutes from './routes/archdeaconryRoutes';
 import eventRegistrationRoutes from './routes/eventRegistrationRoutes';
+import mediaRoutes from './routes/mediaRoutes';
 
 const app: Application = express();
 
@@ -49,6 +50,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/archdeaconries', archdeaconryRoutes);
 app.use('/api/events', eventRegistrationRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Error Handling Middlewares
 app.use(notFoundHandler);
