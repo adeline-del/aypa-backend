@@ -13,6 +13,10 @@ import {
   approveUser,
   updateUserRole,
   updateUserStatus,
+  endExecutiveAppointment,
+  renewExecutiveAppointment,
+  getUserAppointments,
+  assignExecutiveAppointment,
 } from '../controllers/userController';
 
 const router = Router();
@@ -38,6 +42,26 @@ router.patch(
   authorizePermissions('users:suspend'),
   validateRequest(updateUserStatusSchema),
   asyncHandler(updateUserStatus)
+);
+router.post(
+  '/:id/appointments',
+  authorizePermissions('users:assign-role'),
+  asyncHandler(assignExecutiveAppointment)
+);
+router.post(
+  '/:id/end-appointment',
+  authorizePermissions('users:assign-role'),
+  asyncHandler(endExecutiveAppointment)
+);
+router.post(
+  '/:id/renew-appointment',
+  authorizePermissions('users:assign-role'),
+  asyncHandler(renewExecutiveAppointment)
+);
+router.get(
+  '/:id/appointments',
+  authorizePermissions('users:read'),
+  asyncHandler(getUserAppointments)
 );
 
 export default router;

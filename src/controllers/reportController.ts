@@ -14,6 +14,7 @@ import { config } from '../config/env';
 import { inMemoryReports } from '../utils/mockStore';
 
 import { checkOrgScope } from '../middleware/authorize';
+import { createNotificationHelper } from './notificationController';
 
 const canAccessReport = (
   req: AuthenticatedRequest,
@@ -288,6 +289,12 @@ export const createReport = async (
         'Branch Executive must have complete organizational assignments.',
       );
     }
+    if (req.body.branchId && req.body.branchId !== req.user.branchId) {
+      throw new ApiError(
+        403,
+        'Access denied. You cannot create a report for another branch.',
+      );
+    }
   }
 
   /**
@@ -429,6 +436,17 @@ export const updateReport = async (
     }
 
     if (
+      req.user.role === 'branch_executive' &&
+      req.body.branchId &&
+      req.body.branchId !== req.user.branchId
+    ) {
+      throw new ApiError(
+        403,
+        'Access denied. You cannot modify reports for another branch.',
+      );
+    }
+
+    if (
       report.status !== 'draft' &&
       report.status !== 'rejected'
     ) {
@@ -478,6 +496,17 @@ export const updateReport = async (
     throw new ApiError(
       403,
       'Access denied. You cannot modify this report.',
+    );
+  }
+
+  if (
+    req.user.role === 'branch_executive' &&
+    req.body.branchId &&
+    req.body.branchId !== req.user.branchId
+  ) {
+    throw new ApiError(
+      403,
+      'Access denied. You cannot modify reports for another branch.',
     );
   }
 
@@ -777,6 +806,16 @@ export const approveReport = async (
 
   await report.save();
 
+  if (report.submittedBy) {
+    createNotificationHelper({
+      userId: report.submittedBy.toString(),
+      title: 'Branch Report Approved',
+      message: `Your branch report '${report.title}' has been approved.`,
+      type: 'report',
+      link: '/dashboard',
+    }).catch((err) => console.error(err));
+  }
+
   res.status(200).json({
     success: true,
     message: 'Report approved successfully.',
@@ -872,6 +911,16 @@ export const rejectReport = async (
   report.reviewComment = reviewComment;
 
   await report.save();
+
+  if (report.submittedBy) {
+    createNotificationHelper({
+      userId: report.submittedBy.toString(),
+      title: 'Branch Report Revision Required',
+      message: `Your branch report '${report.title}' requires revision: ${reviewComment}`,
+      type: 'warning',
+      link: '/dashboard',
+    }).catch((err) => console.error(err));
+  }
 
   res.status(200).json({
     success: true,

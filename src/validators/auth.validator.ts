@@ -23,3 +23,16 @@ export const registerSchema = z.object({
     profileImage: z.string().optional(),
   }),
 });
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().trim().toLowerCase().email('Invalid email address format.'),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string().min(1, 'Reset token is required.'),
+    newPassword: z.string().min(6, 'New password must be at least 6 characters.'),
+  }),
+});

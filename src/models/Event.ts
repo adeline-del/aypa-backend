@@ -8,7 +8,7 @@ export interface IEvent {
   time: string;
   location: string;
   category: string;
-  capacity: number;
+  capacity?: number;
   registered: number;
   isLive: boolean;
   streamUrl?: string;
@@ -28,11 +28,11 @@ const eventSchema = new Schema<IEventDocument>(
     time: { type: String, required: true },
     location: { type: String, required: true },
     category: { type: String, required: true },
-    capacity: { type: Number, required: true },
+    capacity: { type: Number, required: false, default: null },
     registered: { type: Number, required: true, default: 0 },
     isLive: { type: Boolean, required: true, default: false },
     streamUrl: { type: String, default: '' },
-    image: { type: String, required: true },
+    image: { type: String, required: false, default: '' },
   },
   {
     timestamps: true,

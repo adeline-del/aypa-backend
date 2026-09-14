@@ -18,13 +18,14 @@ import contactRoutes from './routes/contactRoutes';
 import archdeaconryRoutes from './routes/archdeaconryRoutes';
 import eventRegistrationRoutes from './routes/eventRegistrationRoutes';
 import mediaRoutes from './routes/mediaRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 const app: Application = express();
 
 // Middlewares
 app.use(configureCors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health Check Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
@@ -51,6 +52,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/archdeaconries', archdeaconryRoutes);
 app.use('/api/events', eventRegistrationRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Error Handling Middlewares
 app.use(notFoundHandler);
@@ -69,6 +71,8 @@ const startServer = async () => {
   });
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
 
 export default app;

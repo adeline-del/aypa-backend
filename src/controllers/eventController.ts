@@ -150,7 +150,7 @@ export const updateEvent = async (req: Request, res: Response): Promise<void> =>
       ...updates,
     };
 
-    if (updatedEvent.registered > updatedEvent.capacity) {
+    if (updatedEvent.capacity !== undefined && updatedEvent.capacity !== null && updatedEvent.registered > updatedEvent.capacity) {
       throw new ApiError(
         400,
         'Event capacity cannot be lower than the number of registered attendees.'
@@ -258,7 +258,7 @@ export const registerForEvent = async (
     );
   }
 
-  if (event.registered >= event.capacity) {
+  if (event.capacity !== undefined && event.capacity !== null && event.registered >= event.capacity) {
     throw new ApiError(400, 'Event capacity reached.');
   }
 
