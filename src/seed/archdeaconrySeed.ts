@@ -1,7 +1,7 @@
 import { ArchdeaconryModel } from '../models/Archdeaconry';
 import { connectDB } from '../config/db';
 
-const archdeaconries = [
+export const archdeaconries = [
   {
     archdeaconryId: 'accra-east',
     name: 'Accra East',
@@ -493,4 +493,6 @@ const seedArchdeaconries = async () => {
   }
 };
 
-seedArchdeaconries();
+if (require.main === module) {
+  seedArchdeaconries();
+}

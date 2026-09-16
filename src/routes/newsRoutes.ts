@@ -7,11 +7,14 @@ import {
   getNewsSchema,
   getNewsByIdSchema,
   createNewsSchema,
+  updateNewsSchema,
 } from '../validators/news.validator';
 import {
   getNews,
   getNewsById,
   createNews,
+  updateNews,
+  deleteNews,
 } from '../controllers/newsController';
 
 const router = Router();
@@ -20,7 +23,7 @@ const router = Router();
 router.get('/', validateRequest(getNewsSchema), asyncHandler(getNews));
 router.get('/:id', validateRequest(getNewsByIdSchema), asyncHandler(getNewsById));
 
-// Protected Content Creation Endpoint
+// Protected Content Management Endpoints
 router.post(
   '/',
   authenticate,
@@ -29,4 +32,29 @@ router.post(
   asyncHandler(createNews)
 );
 
+router.put(
+  '/:id',
+  authenticate,
+  authorizePermissions('content:update'),
+  validateRequest(updateNewsSchema),
+  asyncHandler(updateNews)
+);
+
+router.patch(
+  '/:id',
+  authenticate,
+  authorizePermissions('content:update'),
+  validateRequest(updateNewsSchema),
+  asyncHandler(updateNews)
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  authorizePermissions('content:delete'),
+  validateRequest(getNewsByIdSchema),
+  asyncHandler(deleteNews)
+);
+
 export default router;
+

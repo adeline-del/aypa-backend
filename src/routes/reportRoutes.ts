@@ -14,6 +14,7 @@ import {
   getReportById,
   createReport,
   updateReport,
+  deleteReport,
   submitReport,
   reviewReport,
   approveReport,
@@ -41,11 +42,18 @@ router.patch(
   asyncHandler(updateReport)
 );
 
+router.delete(
+  '/:id',
+  authorizePermissions('reports:delete'),
+  asyncHandler(deleteReport)
+);
+
 router.post(
   '/:id/submit',
   authorizePermissions('reports:create'),
   asyncHandler(submitReport)
 );
+
 
 router.post(
   '/:id/review',

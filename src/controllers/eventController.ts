@@ -176,6 +176,7 @@ export const updateEvent = async (req: Request, res: Response): Promise<void> =>
 
   if (
     updates.capacity !== undefined &&
+    updates.capacity !== null &&
     updates.capacity < event.registered
   ) {
     throw new ApiError(

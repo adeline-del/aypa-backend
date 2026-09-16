@@ -637,3 +637,49 @@ export const updateTaskStatus = async (
     data: task.toJSON(),
   });
 };
+
+export const deleteTask = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
+  const { id } = req.params;
+
+  if (config.useInMemoryMock) {
+    const idx = inMemoryTasks.findIndex((item) => item.id === id);
+    if (idx === -1) {
+      throw new ApiError(404, 'Task not found.');
+    }
+
+    const task = inMemoryTasks[idx];
+    if (!canModifyTask(req, task)) {
+      throw new ApiError(403, 'Access denied. You do not have permission to delete this task.');
+    }
+
+    inMemoryTasks.splice(idx, 1);
+    res.status(200).json({
+      success: true,
+      message: 'Task deleted successfully.',
+    });
+    return;
+  }
+
+  const task = await TaskModel.findById(id);
+  if (!task) {
+    throw new ApiError(404, 'Task not found.');
+  }
+
+  if (!canModifyTask(req, task)) {
+    throw new ApiError(403, 'Access denied. You do not have permission to delete this task.');
+  }
+
+  await task.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    message: 'Task deleted successfully.',
+  });
+};

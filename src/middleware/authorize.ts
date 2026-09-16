@@ -48,6 +48,7 @@ export const authorizePermissions = (...requiredPermissions: Permission[]) => {
     const hasAllPermissions = requiredPermissions.every((perm) => userPermissions.has(perm));
 
     if (!hasAllPermissions) {
+      console.warn(`[RBAC Auth 403] User '${req.user.id}' (role: '${req.user.role}') lacks required permission(s): [${requiredPermissions.join(', ')}].`);
       throw new ApiError(
         403,
         `Access denied. Required permission(s): [${requiredPermissions.join(', ')}] missing.`

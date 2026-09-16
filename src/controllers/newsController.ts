@@ -83,10 +83,23 @@ export const getNewsById = async (req: Request, res: Response): Promise<void> =>
 
 export const createNews = async (req: Request, res: Response): Promise<void> => {
   const newsData = req.body;
+  const effectiveDate = newsData.date || new Date().toISOString().split('T')[0];
+  const effectiveExcerpt = newsData.excerpt !== undefined ? newsData.excerpt : (newsData.summary || '');
+  const effectiveContent = newsData.content !== undefined ? newsData.content : '';
+  const effectiveImage = newsData.image || 'https://res.cloudinary.com/dxxmqm9vw/image/upload/v1775140330/3_uph0zl.jpg';
+
+  const finalPayload = {
+    ...newsData,
+    date: effectiveDate,
+    excerpt: effectiveExcerpt,
+    content: effectiveContent,
+    image: effectiveImage,
+    state: newsData.state || 'published',
+  };
 
   if (config.useInMemoryMock) {
     const newId = inMemoryNews.length > 0 ? Math.max(...inMemoryNews.map((n) => n.id)) + 1 : 1;
-    const createdArticle: INewsArticle = { id: newId, ...newsData };
+    const createdArticle: INewsArticle = { id: newId, ...finalPayload };
     inMemoryNews.push(createdArticle);
     res.status(201).json({ success: true, message: 'News article created successfully.', data: createdArticle });
     return;
@@ -97,8 +110,56 @@ export const createNews = async (req: Request, res: Response): Promise<void> => 
 
   const newsDoc = await NewsModel.create({
     numericId: newNumericId,
-    ...newsData,
+    ...finalPayload,
   });
 
   res.status(201).json({ success: true, message: 'News article created successfully.', data: newsDoc });
 };
+
+export const updateNews = async (req: Request, res: Response): Promise<void> => {
+  const numericId = parseInt(req.params.id, 10);
+  const updateData = req.body;
+
+  if (config.useInMemoryMock) {
+    const index = inMemoryNews.findIndex((n) => n.id === numericId);
+    if (index === -1) {
+      throw new ApiError(404, `News article with ID ${numericId} not found.`);
+    }
+    inMemoryNews[index] = { ...inMemoryNews[index], ...updateData };
+    res.status(200).json({ success: true, message: 'News article updated successfully.', data: inMemoryNews[index] });
+    return;
+  }
+
+  const article = await NewsModel.findOne({ numericId });
+  if (!article) {
+    throw new ApiError(404, `News article with ID ${numericId} not found.`);
+  }
+
+  Object.assign(article, updateData);
+  await article.save();
+
+  res.status(200).json({ success: true, message: 'News article updated successfully.', data: article });
+};
+
+export const deleteNews = async (req: Request, res: Response): Promise<void> => {
+  const numericId = parseInt(req.params.id, 10);
+
+  if (config.useInMemoryMock) {
+    const index = inMemoryNews.findIndex((n) => n.id === numericId);
+    if (index === -1) {
+      throw new ApiError(404, `News article with ID ${numericId} not found.`);
+    }
+    const [deleted] = inMemoryNews.splice(index, 1);
+    res.status(200).json({ success: true, message: 'News article deleted successfully.', data: deleted });
+    return;
+  }
+
+  const article = await NewsModel.findOneAndDelete({ numericId });
+  if (!article) {
+    throw new ApiError(404, `News article with ID ${numericId} not found.`);
+  }
+
+  res.status(200).json({ success: true, message: 'News article deleted successfully.', data: article });
+};
+
+

@@ -10,6 +10,11 @@ export interface IBranch {
   dioceseId: string;
   executiveIds: string[];
   isActive: boolean;
+  contactEmail?: string;
+  contactPhone?: string;
+  presidentName?: string;
+  secretaryName?: string;
+  chaplainName?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -33,6 +38,11 @@ const branchSchema = new Schema<IBranchDocument>(
     dioceseId: { type: String, required: true, default: 'accra', index: true },
     executiveIds: { type: [String], default: [] },
     isActive: { type: Boolean, required: true, default: true },
+    contactEmail: { type: String, default: '' },
+    contactPhone: { type: String, default: '' },
+    presidentName: { type: String, default: '' },
+    secretaryName: { type: String, default: '' },
+    chaplainName: { type: String, default: '' },
   },
   {
     timestamps: true,
@@ -46,5 +56,6 @@ const branchSchema = new Schema<IBranchDocument>(
     },
   }
 );
+
 
 export const BranchModel = model<IBranchDocument>('Branch', branchSchema);

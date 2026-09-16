@@ -72,9 +72,7 @@ export const authenticate = async (
         dioceseId: mockUser.dioceseId || 'accra',
         archdeaconryId: mockUser.archdeaconryId || '',
         branchId: mockUser.branchId || '',
-        permissions: mockUser.permissions && mockUser.permissions.length > 0
-          ? mockUser.permissions
-          : getPermissionsForRole(mockUser.role),
+        permissions: getPermissionsForRole(mockUser.role, mockUser.permissions),
         tokenVersion: mockUser.tokenVersion ?? 0,
       };
 
@@ -99,9 +97,7 @@ export const authenticate = async (
       throw new ApiError(401, 'Token has been revoked due to security updates. Please log in again.');
     }
 
-    const permissions = userDoc.permissions && userDoc.permissions.length > 0
-      ? (userDoc.permissions as any)
-      : getPermissionsForRole(userDoc.role);
+    const permissions = getPermissionsForRole(userDoc.role, userDoc.permissions);
 
     req.user = {
       id: userDoc.id || userDoc._id.toString(),

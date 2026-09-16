@@ -929,3 +929,49 @@ export const rejectReport = async (
     data: report.toJSON(),
   });
 };
+
+export const deleteReport = async (
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> => {
+  if (!req.user) {
+    throw new ApiError(401, 'Authentication required.');
+  }
+
+  const { id } = req.params;
+
+  if (config.useInMemoryMock) {
+    const idx = inMemoryReports.findIndex((item) => item.id === id);
+    if (idx === -1) {
+      throw new ApiError(404, 'Report not found.');
+    }
+
+    const report = inMemoryReports[idx];
+    if (!canModifyReport(req, report)) {
+      throw new ApiError(403, 'Access denied. You cannot delete this report.');
+    }
+
+    inMemoryReports.splice(idx, 1);
+    res.status(200).json({
+      success: true,
+      message: 'Report deleted successfully.',
+    });
+    return;
+  }
+
+  const report = await ReportModel.findById(id);
+  if (!report) {
+    throw new ApiError(404, 'Report not found.');
+  }
+
+  if (!canModifyReport(req, report)) {
+    throw new ApiError(403, 'Access denied. You cannot delete this report.');
+  }
+
+  await report.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    message: 'Report deleted successfully.',
+  });
+};

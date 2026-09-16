@@ -4,11 +4,18 @@ export interface IResource {
   id: number;
   title: string;
   description: string;
-  type: 'pdf' | 'video' | 'audio';
+  type: 'pdf' | 'video' | 'audio' | string;
   category: string;
   downloadUrl: string;
-  image: string;
+  fileUrl?: string;
+  image?: string;
   featured: boolean;
+  publicId?: string;
+  originalFilename?: string;
+  mimeType?: string;
+  fileSize?: number;
+  uploadedBy?: string;
+  uploadedAt?: Date;
 }
 
 export interface IResourceDocument extends Omit<IResource, 'id'>, Document {
@@ -19,12 +26,19 @@ const resourceSchema = new Schema<IResourceDocument>(
   {
     numericId: { type: Number, required: true, unique: true },
     title: { type: String, required: true },
-    description: { type: String, required: true },
-    type: { type: String, enum: ['pdf', 'video', 'audio'], required: true },
+    description: { type: String, required: false, default: '' },
+    type: { type: String, required: true, default: 'pdf' },
     category: { type: String, required: true },
     downloadUrl: { type: String, required: true, default: '#' },
-    image: { type: String, required: true },
+    fileUrl: { type: String, required: false },
+    image: { type: String, required: false, default: '' },
     featured: { type: Boolean, required: true, default: false },
+    publicId: { type: String, required: false },
+    originalFilename: { type: String, required: false },
+    mimeType: { type: String, required: false },
+    fileSize: { type: Number, required: false },
+    uploadedBy: { type: String, required: false },
+    uploadedAt: { type: Date, required: false, default: Date.now },
   },
   {
     timestamps: true,

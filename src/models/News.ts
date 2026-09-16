@@ -10,6 +10,7 @@ export interface INewsArticle {
   category: string;
   image: string;
   featured: boolean;
+  state?: 'draft' | 'needs_review' | 'scheduled' | 'published';
 }
 
 export interface INewsArticleDocument extends Omit<INewsArticle, 'id'>, Document {
@@ -20,13 +21,14 @@ const newsSchema = new Schema<INewsArticleDocument>(
   {
     numericId: { type: Number, required: true, unique: true },
     title: { type: String, required: true },
-    excerpt: { type: String, required: true },
-    content: { type: String, required: true },
-    author: { type: String, required: true },
+    excerpt: { type: String, required: false, default: '' },
+    content: { type: String, required: false, default: '' },
+    author: { type: String, required: true, default: 'AYPA Secretariat' },
     date: { type: String, required: true },
-    category: { type: String, required: true },
-    image: { type: String, required: true },
+    category: { type: String, required: true, default: 'News' },
+    image: { type: String, required: false, default: '' },
     featured: { type: Boolean, required: true, default: false },
+    state: { type: String, required: true, default: 'published' },
   },
   {
     timestamps: true,
@@ -41,5 +43,6 @@ const newsSchema = new Schema<INewsArticleDocument>(
     },
   }
 );
+
 
 export const NewsModel = model<INewsArticleDocument>('News', newsSchema);

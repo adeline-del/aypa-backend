@@ -19,6 +19,7 @@ import archdeaconryRoutes from './routes/archdeaconryRoutes';
 import eventRegistrationRoutes from './routes/eventRegistrationRoutes';
 import mediaRoutes from './routes/mediaRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import securityRoutes from './routes/securityRoutes';
 
 const app: Application = express();
 
@@ -29,16 +30,25 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health Check Endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
+  const isCloudinaryConfigured = Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY);
+  const isEmailConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER);
+
   res.status(200).json({
     status: 'online',
     timestamp: new Date().toISOString(),
     inMemoryMockMode: config.useInMemoryMock,
     environment: config.nodeEnv,
+    database: config.useInMemoryMock ? 'In-Memory Mock Store' : 'Connected (MongoDB Engine)',
+    services: {
+      cloudinary: isCloudinaryConfigured ? 'Configured' : 'Not Configured',
+      email: isEmailConfigured ? 'Configured' : 'Not Configured',
+    },
   });
 });
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/security', securityRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/reports', reportRoutes);
@@ -58,17 +68,39 @@ app.use('/api/notifications', notificationRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+// Process Diagnostics & Safe Exception Handlers
+process.on('uncaughtException', (err: Error) => {
+  console.error('[Process Error] Uncaught Exception:', err.message);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  console.error('[Process Error] Unhandled Promise Rejection:', reason);
+});
+
+process.on('exit', (code: number) => {
+  if (code !== 0) {
+    console.error(`[Process Warning] AYPA Backend API process exited with code ${code}`);
+  }
+});
+
 // Start Server
 const startServer = async () => {
-  await connectDB();
-  
-  app.listen(config.port, () => {
-    console.log(`=======================================================`);
-    console.log(`🚀 AYPA Backend API Server running on port ${config.port}`);
-    console.log(`🌐 API Base URL: http://localhost:${config.port}/api`);
-    console.log(`🔒 Allowed CORS Origin: ${config.clientUrl}`);
-    console.log(`=======================================================`);
-  });
+  try {
+    await connectDB();
+    
+    const serverPort = config.port;
+    app.listen(serverPort, () => {
+      console.log(`=======================================================`);
+      console.log(`🚀 AYPA Backend API Server running on port ${serverPort}`);
+      console.log(`🌐 API Base URL: http://localhost:${serverPort}/api`);
+      console.log(`🏥 Health Check: http://localhost:${serverPort}/api/health`);
+      console.log(`🔒 Allowed CORS Origin: ${config.clientUrl}`);
+      console.log(`=======================================================`);
+    });
+  } catch (error) {
+    console.error('[Server Startup Failure]', (error as Error).message);
+    process.exit(1);
+  }
 };
 
 if (require.main === module) {

@@ -5,6 +5,7 @@ import { UserModel as User } from './models/User';
 import { EventModel as Event } from './models/Event';
 import { NotificationModel as Notification } from './models/Notification';
 import { ReportModel as Report } from './models/Report';
+import { BranchModel as Branch } from './models/Branch';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -77,7 +78,18 @@ async function runDashboardLaunchTests() {
     ];
     console.log(`✓ All 7 supported roles verified in configuration: ${validRoles.join(', ')}`);
 
-    // Test 4: Database Inspection (Read-Only)
+    // Test 4: Verify Archdeaconry -> Branch Data Relationships
+    console.log('\n[TEST 4] Verifying Archdeaconry -> Branch Data Relationships...');
+    const branches = await Branch.find();
+    console.log(`✓ Total Parish Branches found in DB: ${branches.length}`);
+    const archdeaconryMap = new Map<string, number>();
+    branches.forEach((b) => {
+      const aId = b.archdeaconryId || 'unknown';
+      archdeaconryMap.set(aId, (archdeaconryMap.get(aId) || 0) + 1);
+    });
+    console.log(`✓ Archdeaconries mapped to branches: ${Array.from(archdeaconryMap.keys()).join(', ')}`);
+
+    // Test 5: Database Inspection (Read-Only)
     const userCount = await User.countDocuments();
     const activeUserCount = await User.countDocuments({ isActive: true });
     const approvedUserCount = await User.countDocuments({ isApproved: true });

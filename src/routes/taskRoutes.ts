@@ -14,6 +14,7 @@ import {
   createTask,
   updateTask,
   updateTaskStatus,
+  deleteTask,
 } from '../controllers/taskController';
 
 const router = Router();
@@ -37,6 +38,12 @@ router.patch(
   asyncHandler(updateTask)
 );
 
+router.delete(
+  '/:id',
+  authorizePermissions('tasks:delete'),
+  asyncHandler(deleteTask)
+);
+
 router.post(
   '/:id/status',
   authorizePermissions('tasks:update'),
@@ -45,3 +52,4 @@ router.post(
 );
 
 export default router;
+

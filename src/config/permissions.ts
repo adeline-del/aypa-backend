@@ -48,6 +48,7 @@ export type Permission =
   | 'reports:read'
   | 'reports:update'
   | 'reports:review'
+  | 'reports:delete'
   | 'tasks:read'
   | 'tasks:create'
   | 'tasks:update'
@@ -103,6 +104,11 @@ const ACCRA_DIOCESAN_EXEC_PERMISSIONS: Permission[] = [
   'tasks:delete',
   'branches:create',
   'branches:update',
+  'content:read',
+  'content:create',
+  'content:update',
+  'content:delete',
+  'content:publish',
 ];
 
 const CONTENT_MANAGER_PERMISSIONS: Permission[] = [
@@ -136,6 +142,7 @@ const ADMIN_PERMISSIONS: Permission[] = [
   'reports:read',
   'reports:update',
   'reports:review',
+  'reports:delete',
   'tasks:read',
   'tasks:create',
   'tasks:update',

@@ -21,10 +21,10 @@ export const createEventSchema = z.object({
     time: z.string(),
     location: z.string(),
     category: z.string(),
-    capacity: z.number().positive(),
-    isLive: z.boolean().default(false),
+    capacity: z.number().positive().nullable().optional(),
+    isLive: z.boolean().optional().default(false),
     streamUrl: z.string().optional(),
-    image: z.string().url('Image must be a valid URL'),
+    image: z.string().optional().default(''),
   }),
 });
 
@@ -87,10 +87,10 @@ export const updateEventSchema = z.object({
       time: z.string().optional(),
       location: z.string().optional(),
       category: z.string().optional(),
-      capacity: z.number().positive().optional(),
+      capacity: z.number().positive().nullable().optional(),
       isLive: z.boolean().optional(),
       streamUrl: z.string().optional(),
-      image: z.string().url('Image must be a valid URL').optional(),
+      image: z.string().optional(),
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided for update',

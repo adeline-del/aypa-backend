@@ -14,12 +14,14 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^6.21.0",
     "mongoose": "^8.3.1",
+    "multer": "^2.4.0",
     "nodemailer": "^10.0.10",
     "zod": "^3.23.8"
   },
@@ -28,6 +30,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20.12.7",
     "@types/nodemailer": "^8.0.1",
     "ts-node-dev": "^2.0.0",

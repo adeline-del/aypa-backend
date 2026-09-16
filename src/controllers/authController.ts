@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { UserModel } from '../models/User';
 import { BranchModel } from '../models/Branch';
+import { ArchdeaconryModel } from '../models/Archdeaconry';
 import { ApiError } from '../utils/ApiError';
 import { config } from '../config/env';
 import { generateToken } from '../utils/jwt';
@@ -60,19 +61,65 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
   let branchName = church || '';
 
   if (effectiveBranchId) {
-    if (config.useInMemoryMock) {
-      const mockBranch = inMemoryBranches.find((b) => b.id === effectiveBranchId);
-      if (mockBranch) {
-        effectiveArchdeaconryId = effectiveArchdeaconryId || mockBranch.archdeaconryId;
-        effectiveDioceseId = mockBranch.dioceseId || 'accra';
-        branchName = mockBranch.name;
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(effectiveBranchId);
+
+    if (isObjectId) {
+      if (config.useInMemoryMock) {
+        const mockBranch = inMemoryBranches.find((b) => b.id === effectiveBranchId);
+        if (mockBranch) {
+          if (archdeaconryId && mockBranch.archdeaconryId && mockBranch.archdeaconryId !== archdeaconryId) {
+            throw new ApiError(400, 'The selected parish does not belong to the selected archdeaconry.');
+          }
+          effectiveArchdeaconryId = effectiveArchdeaconryId || mockBranch.archdeaconryId;
+          effectiveDioceseId = mockBranch.dioceseId || 'accra';
+          branchName = mockBranch.name;
+        } else {
+          throw new ApiError(400, 'The selected branch was not found.');
+        }
+      } else {
+        const dbBranch = await BranchModel.findById(effectiveBranchId);
+        if (dbBranch) {
+          if (archdeaconryId && dbBranch.archdeaconryId && dbBranch.archdeaconryId !== archdeaconryId) {
+            throw new ApiError(400, 'The selected parish does not belong to the selected archdeaconry.');
+          }
+          effectiveArchdeaconryId = effectiveArchdeaconryId || dbBranch.archdeaconryId;
+          effectiveDioceseId = dbBranch.dioceseId || 'accra';
+          branchName = dbBranch.name;
+        } else {
+          throw new ApiError(400, 'The selected branch was not found.');
+        }
       }
     } else {
-      const dbBranch = await BranchModel.findById(effectiveBranchId);
-      if (dbBranch) {
-        effectiveArchdeaconryId = effectiveArchdeaconryId || dbBranch.archdeaconryId;
-        effectiveDioceseId = dbBranch.dioceseId || 'accra';
-        branchName = dbBranch.name;
+      // Treat as canonical Parish ID (e.g. "e1", "nw1")
+      if (config.useInMemoryMock) {
+        const mockBranch = inMemoryBranches.find((b) => b.id === effectiveBranchId);
+        if (mockBranch) {
+          if (archdeaconryId && mockBranch.archdeaconryId && mockBranch.archdeaconryId !== archdeaconryId) {
+            throw new ApiError(400, 'The selected parish does not belong to the selected archdeaconry.');
+          }
+          effectiveArchdeaconryId = effectiveArchdeaconryId || mockBranch.archdeaconryId;
+          branchName = mockBranch.name;
+        }
+      } else {
+        let targetArchDoc = null;
+        if (effectiveArchdeaconryId) {
+          targetArchDoc = await ArchdeaconryModel.findOne({ archdeaconryId: effectiveArchdeaconryId });
+        } else {
+          targetArchDoc = await ArchdeaconryModel.findOne({ 'parishes.id': effectiveBranchId });
+        }
+
+        if (!targetArchDoc) {
+          throw new ApiError(400, 'The selected archdeaconry was not found.');
+        }
+
+        const parish = targetArchDoc.parishes.find((p) => p.id === effectiveBranchId);
+
+        if (!parish) {
+          throw new ApiError(400, 'The selected parish does not belong to the selected archdeaconry.');
+        }
+
+        effectiveArchdeaconryId = targetArchDoc.archdeaconryId;
+        branchName = parish.name;
       }
     }
   }
@@ -498,6 +545,9 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response): 
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) {
     throw new ApiError(400, 'Current password and new password are required.');
+  }
+  if (currentPassword === newPassword) {
+    throw new ApiError(400, 'New password must be different from current password.');
   }
   if (newPassword.length < 6) {
     throw new ApiError(400, 'New password must be at least 6 characters.');
