@@ -130,6 +130,7 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
     registered: 0,
   });
 
+  
   res.status(201).json({ success: true, message: 'Event created successfully.', data: eventDoc });
 };
 
